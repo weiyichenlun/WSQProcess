@@ -11,6 +11,16 @@ import java.nio.ByteBuffer;
 public interface Cxbio extends Library {
     Cxbio cxbio = (Cxbio) Native.loadLibrary("cxbio", Cxbio.class);
 
+    public static final int CXBIO_FORMAT_UNKNOWN = 0;
+    public static final int CXBIO_FORMAT_WSQ = 1;
+    public static final int CXBIO_FORMAT_JPG = 2;
+    public static final int CXBIO_FORMAT_JPGL = 3;
+    public static final int CXBIO_FORMAT_JP2 = 4;
+    public static final int CXBIO_FORMAT_JP2L = 5;
+    public static final int CXBIO_FORMAT_PNG = 6;
+    public static final int CXBIO_FORMAT_BMP = 7;
+
+
     int CxbioGetImageData(ByteBuffer var1, int var2, int var3, DecOutParam var4);
 
     public static void main(String[] args) {

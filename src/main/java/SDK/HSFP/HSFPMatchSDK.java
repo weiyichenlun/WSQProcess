@@ -14,6 +14,15 @@ import java.nio.ByteBuffer;
 public interface HSFPMatchSDK extends Library {
     HSFPMatchSDK INSTANCE = HSFPUtil.init((HSFPMatchSDK) Native.loadLibrary("HSFpMatchSDK", HSFPMatchSDK.class));
 
+    public static final int LiveScanPlain = 0;
+    public static final int LiveScanRolled = 1;
+    public static final int NonLiveScanPlain = 2;
+    public static final int NonLiveScanRolled = 3;
+    public static final int LatentImpression = 4;
+    public static final int LatentTracing = 5;
+    public static final int LatentPhoto = 6;
+    public static final int LatentLift = 7;
+
     int HSFp_Initialize(String lic);
 
     int HSFp_BeginExtractFeature(PointerByReference br);
