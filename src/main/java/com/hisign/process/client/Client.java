@@ -1,7 +1,6 @@
 package com.hisign.process.client;
 
 import SDK.HSFP.HSFPMatchSDK;
-import SDK.HSFP.HSFPUtil;
 import SDK.cxbio.Cxbio;
 import SDK.cxbio.DecOutParam;
 import com.hisign.process.ProcessRecord;
@@ -32,7 +31,7 @@ public class Client {
 
     public static void main(String[] args) {
         String name = ManagementFactory.getRuntimeMXBean().getName();
-        String pid = name.split("@")[0];
+//        String pid = name.split("@")[0];
 
         if (args.length == 0) {
             log.error("Server host is not specified in the command line");
@@ -84,12 +83,10 @@ public class Client {
                     record.ex = e;
                     record.msg = e.toString();
                 }
-                try{
-                    extractFea(record);
-                    record.extractOK = true;
-                }
                 long start = System.currentTimeMillis();
                 log.trace("befor extract features");
+                extractFea(record);
+                record.extractOK = true;
                 byte[] res = record.toBytes();
                 dos.writeInt(res.length);
                 dos.write(res);
@@ -115,9 +112,9 @@ public class Client {
                 DecOutParam decOutParam = new DecOutParam();
                 int n = Cxbio.cxbio.CxbioGetImageData(ByteBuffer.wrap(wsq_file), len, Cxbio.CXBIO_FORMAT_WSQ, decOutParam);
                 if (n != 0) {
-                    record.msg = "get image data error";
                     log.error("Cxbio get image data error. record: {}, imgs[{}]", record.file_name, i);
                 }
+                log.trace("Cxbio get image data finish");
                 int img_len = decOutParam.buf_size;
                 byte[] img = decOutParam.buf.getByteArray(0, img_len);
                 Pointer p = pbr.getValue();
