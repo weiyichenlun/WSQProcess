@@ -1,0 +1,72 @@
+group 'com.hisign.process'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+apply plugin: 'idea'
+
+
+sourceCompatibility = 1.8
+compileJava.options.encoding = 'UTF-8'
+version = '1.0'
+ext.vendor = 'ZP'
+
+sourceSets{
+    main{
+        resources {
+            srcDir 'src/main'
+        }
+        output.resourcesDir = 'build/classes/main'
+    }
+}
+
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    jcenter()
+
+}
+
+dependencies {
+    compile fileTree(dir:'libs',include:['*.jar'])
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile "net.java.dev.jna:jna:4.4.0"
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.7'
+    compile group: 'commons-dbcp', name: 'commons-dbcp', version:'1.4'
+    compile group: 'ch.qos.logback', name: 'logback-core', version:'1.2.1'
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.1'
+}
+
+task copyJars(type: Copy){
+    from configurations.runtime
+    into 'build/libs/lib'
+}
+
+task copyConfig(type: Copy){
+    from 'config/'
+    into 'build/libs/config'
+}
+
+task generateJar(type: Jar, dependsOn: [copyJars, copyConfig, jar]){
+    manifest {
+        attributes ('Implementation-Title': 'Gradle',
+                'Implementation-Version': 1.0,
+                'Created-By': vendor,
+                'Main-Class': 'com.hisign.process.Main',
+                'Class-Path': configurations.compile.collect{'lib/'+it.getName()}.join('')
+        )
+    }
+
+    into(''){
+        from "$buildDir/classes/main"
+        include('com/**/*')
+        include('SDK/**/*')
+        include('bin/*')
+        include('config/*')
+    }
+
+    into(''){
+        from "$projectDir/src/main/resources"
+    }
+
+}
