@@ -1,0 +1,31 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- encoders are assigned the type
+             ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+        <target>System.out</target>
+    </appender>
+    <appender name="ALL" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>./logs/FPProcess.log</file>
+
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <!-- rollover daily -->
+        <fileNamePattern>./logs/FPProcess-%d{yyyy-MM-dd}.%i.log.zip</fileNamePattern>
+        <timeBasedFileNamingAndTriggeringPolicy
+              class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+          <!-- or whenever the file size reaches 100MB -->
+          <maxFileSize>100MB</maxFileSize>
+        </timeBasedFileNamingAndTriggeringPolicy>
+      </rollingPolicy>
+      <encoder>
+              <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{0} %n %msg%n</pattern>
+      </encoder>
+    </appender>
+        <root>
+        <appender-ref ref="ALL" level="DEBUG"/>
+        <appender-ref ref="STDOUT" level = "DEBUG" />
+    </root>
+<logger name="con.hisign.process.Main" level="DEBUG"/>
+</configuration>

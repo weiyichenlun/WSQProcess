@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Class-Path: lib\commons-dbcp-1.4.jar lib\jna-4.4.0.jar lib\commons-poo
+ l-1.5.4.jar lib\slf4j-api-1.7.22.jar lib\logback-core-1.2.1.jar lib\l
+ ogback-classic-1.2.1.jar
+Main-Class: com.hisign.process.client.Client
+
