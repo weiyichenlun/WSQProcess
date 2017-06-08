@@ -21,25 +21,48 @@ public class ReadFile implements Runnable {
     private AtomicInteger count = new AtomicInteger(0);
     private long start = 0L;
     private ProcessInfo info;
-    public ReadFile(int fromIndex, int toIndex, ProcessInfo info) {
+    private int thread_idx;
+    public ReadFile(int fromIndex, int toIndex, ProcessInfo info, int thread_idx) {
         this.fromIndex = fromIndex;
         this.toIndex = toIndex;
         this.info = info;
         TOPDIR = info.src_dir;
+        this.thread_idx = thread_idx;
     }
 
 
 
     @Override
     public void run() {
+        boolean continueLast = info.continueLasts[thread_idx];
+        log.info("ReadFile thread_{} continueLast: {}", thread_idx, continueLast);
+        boolean finishSkip = false;
+        int index = 0;
+        int last_dir_num = 0;
+        if (continueLast) {
+            log.info("ReadFile thread_{} Last index: {}, last dir: {}, last name: {}", thread_idx, info.lastIndex, info.end_dirs[thread_idx], info.last_names[thread_idx]);
+            index = info.lastIndex + 1;
+            if (info.currentIndex.get() < index) {
+                info.currentIndex.set(index);
+            }
+            last_dir_num = Integer.parseInt(info.end_dirs[thread_idx]);
+        }
+        boolean displaySkip = true;
         for (int i = fromIndex; i < toIndex; i++) {//0,1,2
+            if (continueLast && !finishSkip && i < last_dir_num) {
+                if (displaySkip) {
+                    log.debug("ReadFile thread_{} is skipping files", thread_idx);
+                    displaySkip = false;
+                }
+                continue;
+            }
             String subDirName = String.valueOf(i);
             File subDir = new File(TOPDIR, subDirName);//0,1,2
             if (!subDir.exists()) {
                 log.info("Sub directory {} does not exist.", i);
                 continue;
             }
-            log.info("reading dir: {}", subDir.getAbsoluteFile());
+            log.info("reading dir: {}", subDir.getAbsolutePath());
             String[] names = subDir.list();
             if (names == null) {
                 log.warn("Empty dir: {}", i);
@@ -49,6 +72,14 @@ public class ReadFile implements Runnable {
             int len = names.length;
             log.info("Total files: {}", len);
             for (int j = 0; j < len; j++) {
+                if (continueLast && !finishSkip) {
+                    if (names[j].compareTo(info.last_names[thread_idx]) <= 0) {
+                        continue;
+                    } else {
+                        finishSkip = true;
+                        log.info("ReadFile thread_{} skip finished. Now From dir: {}, file: {}", thread_idx, subDirName, names[j]);
+                    }
+                }
                 File dataDir = new File(subDir, names[j]);
                 if (!dataDir.isDirectory()) continue;
                 String[] wsqNames = dataDir.list((dir, name) -> name.endsWith("wsq"));
@@ -80,11 +111,12 @@ public class ReadFile implements Runnable {
                 record.file_dir = subDirName;
                 record.file_name = names[j];
                 record.idx = info.currentIndex.getAndIncrement();
+                record.thread_idx = thread_idx;
                 while (true) {
                     try {
                         log.info("put record into readQueue");
                         info.readQueue.put(record);
-                        log.trace("record.idx is {}", record.idx);
+                        log.trace("record.idx is {}, record.thread_idx is {}", record.idx, record.thread_idx);
                         info.loadCount.incrementAndGet();
                         break;
                     } catch (InterruptedException e) {

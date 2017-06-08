@@ -66,7 +66,7 @@ public class ProcessInfo {
     //线程索引，用来判断是否所有数据都已经全部加载完成
     public AtomicInteger thread_idx = new AtomicInteger();
 
-    public boolean continueLast;
+    public boolean[] continueLasts;
     public int lastIndex;
     public String lastDir;
     public String lastName;
@@ -74,12 +74,24 @@ public class ProcessInfo {
     public AtomicBoolean loadAll = new AtomicBoolean();
     public int thread_num = 0;
     public String src_dir = null;
-
+    public String[] start_dirs;
+    public String[] end_dirs;
+    public String[] last_names;
     private RandomAccessFile raf;
     private PrintWriter pw_extract_fail;
     private PrintWriter pw_write_fail;
 
     public ProcessInfo() throws IOException {
+        this(1);//默认读取线程为1
+    }
+
+    public ProcessInfo(int read_thread_count) throws IOException {
+        this.thread_num = read_thread_count;
+        start_dirs = new String[read_thread_count];
+        end_dirs = new String[read_thread_count];
+        last_names = new String[read_thread_count];
+        continueLasts = new boolean[read_thread_count];
+
         raf = new RandomAccessFile("last_info.txt", "rw");
         pw_extract_fail = new PrintWriter(new FileWriter("fail_extract_list.txt", true), true);
         pw_write_fail = new PrintWriter(new FileWriter("fail_write_list.txt", true), true);
@@ -87,7 +99,6 @@ public class ProcessInfo {
         Properties props = new Properties();
         props.load(new FileInputStream("last_info.txt"));
         if (props.size() > 0) {
-            continueLast = true;
             try {
                 lastIndex = Integer.parseInt(props.getProperty("last_index"));
             } catch (NumberFormatException e) {
@@ -135,33 +146,84 @@ public class ProcessInfo {
             } catch (NumberFormatException e) {
                 log.error("finish_count number format eroor: {}", props.getProperty("finish_count"), e);
             }
+
+            try {
+                int num_thread = Integer.parseInt(props.getProperty("read_thread_count"));
+                if (thread_num != num_thread) {
+                    log.error("read_thread_count is not equal with read_thread_count in last_info.txt. info.read_thread_num is {} and read_thread_count in last_info is {}",
+                            thread_num, num_thread);
+                } else {
+                    for (int i = 0; i < num_thread; i++) {
+                        end_dirs[i] = props.getProperty("thread_" + i + "_last_dir");
+                        last_names[i] = props.getProperty("thread_" + i + "_last_name");
+                        continueLasts[i] = true;
+                    }
+                }
+            } catch (NumberFormatException e) {
+                log.error("thread_number format error: {}", props.getProperty("thread_num"), e);
+            }
+
+
         }
     }
 
     public synchronized void writeLastInfo(ProcessRecord record) {
-        log.trace("____________now in writeLastInfo method");
         ProcessTempInfo tempInfo = new ProcessTempInfo(record);
-        log.trace("tempInfo.idx is {}", tempInfo.idx);
-        log.trace("now current idx is {}", currentIndex.get());
-        if (tempInfo.idx == currentIndex.get()) {
-            writeRandomFile(tempInfo);
-            currentIndex.incrementAndGet();
-            while (true) {
-                ProcessTempInfo pti = insertInfoMap.get(currentIndex.get());
-                if (pti == null) {
-                    break;
-                } else {
-                    writeRandomFile(pti);
-                    insertInfoMap.remove(pti.idx);
-                    if (currentIndex.get() == pti.idx) {
-                        currentIndex.incrementAndGet();
-                    }
-                }
-            }
+        writeRandomFile(tempInfo);
+        int thread_idx = tempInfo.thread_idx;
+        ProcessTempInfo temp = insertInfoMap.get(thread_idx);
+        if (temp == null) {
+            insertInfoMap.put(thread_idx, tempInfo);
         } else {
-            log.trace("____________put tempInfo into insertInfoMap");
-            insertInfoMap.put(tempInfo.idx, tempInfo);
+            insertInfoMap.replace(thread_idx, tempInfo);
         }
+        //infomap中存储了五个线程各自的一条record后则写入last_info.txt
+        StringBuilder sb = new StringBuilder();
+        sb.append("last_index=").append(tempInfo.idx).append("\r\n");
+//        sb.append("last_dir=").append(tempInfo.file_dir).append("\r\n");
+//        sb.append("last_name=").append(tempInfo.file_name).append("\r\n");
+        sb.append("extract_finish_count=").append(extractFinishedCount.get()).append("\r\n");
+        sb.append("write_finish_count=").append(writeFinishedCount.get()).append("\r\n");
+        sb.append("extract_fail_count=").append(extractFailCount.get()).append("\r\n");
+        sb.append("write_fail_count=").append(writeFailCount.get()).append("\r\n");
+        sb.append("finish_count=").append(finishCount.get()).append("\r\n");
+        sb.append("read_thread_count=").append(thread_num).append("\r\n");
+        if (thread_num == insertInfoMap.size()) {
+            insertInfoMap.forEach((integer, tempInfo1) -> sb.append(addInfo(tempInfo1)));
+            insertInfoMap.clear();
+            writeRandomFile(sb.toString());
+        }
+
+//        String s = String.format("last_index=%d\r\nlast_dir=%s\r\nlast_name=%s\r\nextract_finish_count=%d\r\nwrite_finish_count=%d\r\nextract_fail_count=%d\r\n" +
+//                        "write_fail_count=%d\r\nfinish_count=%d\r\n", tempInfo.idx, tempInfo.file_dir, tempInfo.file_name, extractFinishedCount.get() + 1,
+//                writeFinishedCount.get(), extractFailCount.get(), writeFailCount.get(), finishCount.get());
+//        log.trace("tempInfo.idx is {}", tempInfo.idx);
+//        log.trace("now current idx is {}", currentIndex.get());
+//        if (tempInfo.idx == currentIndex.get()) {
+//            writeRandomFile(tempInfo);
+//            currentIndex.incrementAndGet();
+//            while (true) {
+//                ProcessTempInfo pti = insertInfoMap.get(currentIndex.get());
+//                if (pti == null) {
+//                    break;
+//                } else {
+//                    writeRandomFile(pti);
+//                    insertInfoMap.remove(pti.idx);
+//                    if (currentIndex.get() == pti.idx) {
+//                        currentIndex.incrementAndGet();
+//                    }
+//                }
+//            }
+//        } else {
+//            insertInfoMap.put(tempInfo.idx, tempInfo);
+//        }
+    }
+
+    private String addInfo(ProcessTempInfo tempInfo1) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("thread_").append(tempInfo1.thread_idx).append("_last_dir=").append(tempInfo1.file_dir).append("\r\n");
+        sb.append("thread_").append(tempInfo1.thread_idx).append("_last_name=").append(tempInfo1.file_name).append("\r\n");
+        return sb.toString();
     }
 
     synchronized void writeRandomFile(ProcessTempInfo tempInfo) {
@@ -178,10 +240,6 @@ public class ProcessInfo {
         if (!tempInfo.writeOK) {
             writeInsertFailInfo(tempInfo);
         }
-        String s = String.format("last_index=%d\r\nlast_dir=%s\r\nlast_name=%s\r\nextract_finish_count=%d\r\nwrite_finish_count=%d\r\nextract_fail_count=%d\r\n" +
-                        "write_fail_count=%d\r\nfinish_count=%d\r\n", tempInfo.idx, tempInfo.file_dir, tempInfo.file_name, extractFinishedCount.get() + 1,
-                writeFinishedCount.get(), extractFailCount.get(), writeFailCount.get(), finishCount.get());
-        writeRandomFile(s);
     }
 
     private synchronized void writeRandomFile(String s) {

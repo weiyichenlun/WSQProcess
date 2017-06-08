@@ -16,6 +16,8 @@ public class ProcessRecord implements Serializable{
     //编号，用于断点续传
     public int idx;
 
+    public int thread_idx;
+
     //源文件所在目录
     public String file_dir;
 
@@ -23,7 +25,7 @@ public class ProcessRecord implements Serializable{
     public String file_name;
 
     //源文件wsq数据
-    public final byte[][] imgs = new byte[10][];
+    public byte[][] imgs = new byte[10][];
 
     //提取得到的特征数据
     public final byte[][] feas = new byte[10][];

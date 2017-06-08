@@ -6,6 +6,8 @@ package com.hisign.process;
 public class ProcessTempInfo {
     public int idx;
 
+    public int thread_idx;
+
     public String file_dir;
 
     public String file_name;
@@ -20,6 +22,7 @@ public class ProcessTempInfo {
 
     public ProcessTempInfo(ProcessRecord record) {
         this.idx = record.idx;
+        this.thread_idx = record.thread_idx;
         this.file_dir = record.file_dir;
         this.file_name = record.file_name;
         this.extractOK = record.extractOK;

@@ -10,7 +10,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -58,8 +57,7 @@ public class Main {
         }
         log.info("Using write_thread_count: {}", write_thread_count);
 
-        info = new ProcessInfo();
-        info.thread_num = read_thread_count;
+        info = new ProcessInfo(read_thread_count);
         info.src_dir = src_dir;
 
         String last_dir = info.lastDir;
@@ -94,20 +92,21 @@ public class Main {
             read_thread_count = 1;
             interval = toIndex - fromIndex;
         }
-        log.info("Continue last: {}", info.continueLast);
-        if (info.continueLast) {
-            log.info("Last index: {}, last dir: {}, last name: {}", info.lastIndex, info.lastDir, info.lastName);
-            new Thread(() -> continueLast(info)).start();
-        }
+//        log.info("Continue last: {}", info.continueLast);
+//        if (info.continueLast) {
+//            log.info("Last index: {}, last dir: {}, last name: {}", info.lastIndex, info.lastDir, info.lastName);
+//            new Thread(() -> continueLast(info)).start();
+//        }
 
         for (int i = 0; i < read_thread_count; i++) {
             ReadFile readFile;
+            info.start_dirs[i] = info.end_dirs[i] = String.valueOf(i * interval);
             if ((i + 1) * interval >= toIndex) {
                 log.debug("i={}, ReadFile fromIndex={}, toIndex={}",i, i*interval, toIndex);
-                readFile = new ReadFile(i * interval, toIndex, info);
+                readFile = new ReadFile(i * interval, toIndex, info, i);
             } else {
                 log.debug("i={}, ReadFile fromIndex={}, toIndex={}", i, i * interval, (i + 1) * interval);
-                readFile = new ReadFile(i * interval, (i + 1) * interval, info);
+                readFile = new ReadFile(i * interval, (i + 1) * interval, info, i);
             }
             new Thread(readFile).start();
         }
@@ -185,84 +184,84 @@ public class Main {
         finished.set(true);
     }
 
-    private static void continueLast(ProcessInfo info) {
-        boolean finishSkip = false;
-        int idx = info.lastIndex + 1;
-        info.currentIndex.set(idx);
-        boolean displaySkip = true;
-        String src_dir = info.src_dir;
-        File src_dir_file = new File(src_dir);
-        String[] sub_dirs = src_dir_file.list();
-        if (sub_dirs == null) {
-            log.error("Src directory is empty.");
-            return;
-        }
-        sub_dirs = Utils.sort(sub_dirs);
-        for (String sub_dir : sub_dirs) {
-            if (info.continueLast && !finishSkip && sub_dir.compareTo(info.lastDir) < 0) {
-                if (displaySkip) {
-                    log.debug("Skipping dirs");
-                    displaySkip = false;
-                }
-                continue;
-            }
-            File sub_dir_file = new File(src_dir, sub_dir);
-            if(!sub_dir_file.isDirectory()) continue;
-            log.info("Now read dir: {}", sub_dir);
-            String[] file_names = sub_dir_file.list();
-            if (file_names == null) {
-                log.debug("Empty sub directory: {}", sub_dir);
-                continue;
-            }
-            Arrays.sort(file_names);
-            log.debug("Now read files ...");
-            for (String file_name : file_names) {
-                if (info.continueLast && !finishSkip) {
-                    if (file_name.compareTo(info.lastName) <= 0) continue;
-                    else {
-                        finishSkip = true;
-                        log.info("Now finish skip. Start from dir: {}, file: {}", sub_dir, file_name);
-                    }
-                }
-                ProcessRecord record = new ProcessRecord();
-                File data_dir = new File(sub_dir, file_name);
-                String[] wsqNames = data_dir.list((dir, name) -> name.endsWith("wsq"));
-                if (wsqNames == null || wsqNames.length == 0) {
-                    log.warn("No wsq in the dir: {}/{}", sub_dir, file_name);
-                    continue;
-                }
-                for (String wsqname : wsqNames) {
-                    if (!wsqname.contains("_")) {
-                        log.warn("invalid wsqname: {}", wsqname);
-                        continue;
-                    }
-                    try {
-                        String posStr = wsqname.substring(wsqname.lastIndexOf("_") + 1, wsqname.lastIndexOf("."));
-                        int pos = Integer.parseInt(posStr);
-                        if (pos > 10 || pos < 1) {
-                            log.warn("Unsoupported pos. wsq:{}/{}/{}", sub_dir, file_name, wsqname);
-                            continue;
-                        }
-                        record.imgs[pos - 1] = Utils.readFile(new File(data_dir, wsqname));
-                    } catch (NumberFormatException e) {
-                        log.error("Invalid pos value. wsq:{}/{}/{}", sub_dir, file_name, wsqname, e);
-                    } catch (IOException e) {
-                        log.error("Read wsq file error. wsq: {}/{}/{}", sub_dir, file_name, wsqname, e);
-                    }
-                }
-                record.file_dir = sub_dir;
-                record.file_name = file_name;
-                record.idx = idx++;
-
-                try {
-                    info.readQueue.put(record);
-                    info.loadCount.incrementAndGet();
-                } catch (InterruptedException e) {
-                    log.error("Put record error. file: {}/{}", sub_dir, file_name, e);
-                }
-            }
-        }
-    }
+//    private static void continueLast(ProcessInfo info) {
+//        boolean finishSkip = false;
+//        int idx = info.lastIndex + 1;
+//        info.currentIndex.set(idx);
+//        boolean displaySkip = true;
+//        String src_dir = info.src_dir;
+//        File src_dir_file = new File(src_dir);
+//        String[] sub_dirs = src_dir_file.list();
+//        if (sub_dirs == null) {
+//            log.error("Src directory is empty.");
+//            return;
+//        }
+//        sub_dirs = Utils.sort(sub_dirs);
+//        for (String sub_dir : sub_dirs) {
+//            if (info.continueLast && !finishSkip && sub_dir.compareTo(info.lastDir) < 0) {
+//                if (displaySkip) {
+//                    log.debug("Skipping dirs");
+//                    displaySkip = false;
+//                }
+//                continue;
+//            }
+//            File sub_dir_file = new File(src_dir, sub_dir);
+//            if(!sub_dir_file.isDirectory()) continue;
+//            log.info("Now read dir: {}", sub_dir);
+//            String[] file_names = sub_dir_file.list();
+//            if (file_names == null) {
+//                log.debug("Empty sub directory: {}", sub_dir);
+//                continue;
+//            }
+//            Arrays.sort(file_names);
+//            log.debug("Now read files ...");
+//            for (String file_name : file_names) {
+//                if (info.continueLast && !finishSkip) {
+//                    if (file_name.compareTo(info.lastName) <= 0) continue;
+//                    else {
+//                        finishSkip = true;
+//                        log.info("Now finish skip. Start from dir: {}, file: {}", sub_dir, file_name);
+//                    }
+//                }
+//                ProcessRecord record = new ProcessRecord();
+//                File data_dir = new File(sub_dir, file_name);
+//                String[] wsqNames = data_dir.list((dir, name) -> name.endsWith("wsq"));
+//                if (wsqNames == null || wsqNames.length == 0) {
+//                    log.warn("No wsq in the dir: {}/{}", sub_dir, file_name);
+//                    continue;
+//                }
+//                for (String wsqname : wsqNames) {
+//                    if (!wsqname.contains("_")) {
+//                        log.warn("invalid wsqname: {}", wsqname);
+//                        continue;
+//                    }
+//                    try {
+//                        String posStr = wsqname.substring(wsqname.lastIndexOf("_") + 1, wsqname.lastIndexOf("."));
+//                        int pos = Integer.parseInt(posStr);
+//                        if (pos > 10 || pos < 1) {
+//                            log.warn("Unsoupported pos. wsq:{}/{}/{}", sub_dir, file_name, wsqname);
+//                            continue;
+//                        }
+//                        record.imgs[pos - 1] = Utils.readFile(new File(data_dir, wsqname));
+//                    } catch (NumberFormatException e) {
+//                        log.error("Invalid pos value. wsq:{}/{}/{}", sub_dir, file_name, wsqname, e);
+//                    } catch (IOException e) {
+//                        log.error("Read wsq file error. wsq: {}/{}/{}", sub_dir, file_name, wsqname, e);
+//                    }
+//                }
+//                record.file_dir = sub_dir;
+//                record.file_name = file_name;
+//                record.idx = idx++;
+//
+//                try {
+//                    info.readQueue.put(record);
+//                    info.loadCount.incrementAndGet();
+//                } catch (InterruptedException e) {
+//                    log.error("Put record error. file: {}/{}", sub_dir, file_name, e);
+//                }
+//            }
+//        }
+//    }
 
 
     private static void serve() {
@@ -332,7 +331,7 @@ public class Main {
                 } else {
                     log.error("Error. file: {}/{} ", record.file_dir, record.file_name, e);
                 }
-
+                record.imgs = imgs_bak;
                 log.debug("-----------Try to put back into readqueue----------------");
                 while (true) {
                     try {

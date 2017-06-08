@@ -86,8 +86,8 @@ public class Client {
                 long start = System.currentTimeMillis();
                 log.debug("before extract features");
                 extractFea(record);
-                record.extractOK = true;
                 record.extractCost = System.currentTimeMillis() - start;
+                record.imgs = null;
                 byte[] res = record.toBytes();
                 dos.writeInt(res.length);
                 dos.write(res);
@@ -99,19 +99,17 @@ public class Client {
             } /*finally {
                 socket.close();
             }*/
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-            }
         }
     }
 
     private synchronized static void extractFea(ProcessRecord record) {
         byte[] fea;
+        int cnt = 0;
         for (int i = 0; i < 10; i++) {
             byte[] wsq_file = record.imgs[i];
             if (null == wsq_file) {
                 record.feas[i] = null;
+                cnt++;
             } else {
                 fea = new byte[3072];
                 int len = wsq_file.length;
@@ -136,12 +134,20 @@ public class Client {
                 if (m != 0) {
                     log.error("Extract feature error. record: {}/{}, imgs[{}]", record.file_dir, record.file_name, i);
                     record.feas[i] = null;
+                    cnt++;
                 } else {
                     log.debug("Extract feature successfully. ");
                     record.feas[i] = fea;
                 }
                 Cxbio.cxbio.CxbioFree(decOutParam.buf);
             }
+        }
+        if (cnt == 10) {
+            log.warn("all features are null. record: {}/{}", record.file_dir, record.file_name);
+            record.extractOK = false;
+            record.ex = new NullPointerException("features are null");
+        } else {
+            record.extractOK = true;
         }
 
     }

@@ -31,10 +31,7 @@ public class WriteFea implements Runnable {
         while (true) {
             ProcessRecord record = null;
             try {
-                log.debug("**** try to take record from writequeue****");
                 record = info.writeQueue.take();
-                log.trace("*********after taking record from writequeue***********");
-
             } catch (InterruptedException e) {
                 log.info("InterrupedException during take from info.writeQueue ", e);
                 try {
@@ -49,15 +46,18 @@ public class WriteFea implements Runnable {
             try {
                 long start = System.currentTimeMillis();
                 log.trace("before isnert: {}/{}", record.file_dir, record.file_name);
-                insertOK = insertRecord(record);
-                start = System.currentTimeMillis() - start;
-                info.writeFeaCost.set(start);
-                if (insertOK) {
-                    log.debug("insert record successful. record: {}/{}, cost: {}ms", record.file_dir, record.file_name, start);
-                    info.finishCount.incrementAndGet();
-                } else {
-                    log.warn("duplicated record: {}/{}", record.file_dir, record.file_name);
+                if (record.extractOK) {
+                    insertOK = insertRecord(record);
+                    start = System.currentTimeMillis() - start;
+                    info.writeFeaCost.set(start);
+                    if (insertOK) {
+                        log.debug("insert record successful. record: {}/{}, cost: {}ms", record.file_dir, record.file_name, start);
+                        info.finishCount.incrementAndGet();
+                    } else {
+                        log.warn("duplicated record: {}/{}", record.file_dir, record.file_name);
+                    }
                 }
+                record.writeOK = true;
             } catch (SQLException e) {
                 log.error("insert record error. record: {}/{}", record.file_dir, record.file_name, e);
                 record.writeOK = false;
@@ -66,7 +66,6 @@ public class WriteFea implements Runnable {
 
             try {
                 long start = System.currentTimeMillis();
-                log.trace("______________before writeLast Info__________________");
                 info.writeLastInfo(record);
                 start = System.currentTimeMillis() - start;
                 log.debug("after write last info: {}/{}, cost: {}ms", record.file_dir, record.file_name, start);
