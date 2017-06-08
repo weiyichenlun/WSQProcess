@@ -47,10 +47,6 @@ public class ExtractFea implements Callable<ProcessRecord>{
                     if(null == wsq_file) return null;
                     int len = wsq_file.length;
                     int type = 1;
-//                    GrayImage grayImage = GrayImage.fromWsq(wsq_file);
-//                    byte[] img = grayImage.raw;
-//                    int width = grayImage.width;
-//                    int height = grayImage.height;
                     DecOutParam decOutParam = new DecOutParam();
                     int n = Cxbio.cxbio.CxbioGetImageData(ByteBuffer.wrap(wsq_file), len, type, decOutParam);
                     if (n != 0) {

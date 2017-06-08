@@ -1,5 +1,6 @@
 package com.hisign.process;
 
+import com.hisign.process.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,13 +80,16 @@ public class ReadFile implements Runnable {
                 record.file_dir = subDirName;
                 record.file_name = names[j];
                 record.idx = info.currentIndex.getAndIncrement();
-
-                try {
-                    log.info("put record into readQueue");
-                    info.readQueue.put(record);
-                    info.loadCount.incrementAndGet();
-                } catch (InterruptedException e) {
-                    log.error("Put record error. file: {}/{}", subDir, names[j], e);
+                while (true) {
+                    try {
+                        log.info("put record into readQueue");
+                        info.readQueue.put(record);
+                        log.trace("record.idx is {}", record.idx);
+                        info.loadCount.incrementAndGet();
+                        break;
+                    } catch (InterruptedException e) {
+                        log.error("Put record error. file: {}/{}", subDir, names[j], e);
+                    }
                 }
             }
         }

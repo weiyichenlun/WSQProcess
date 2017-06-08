@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
  */
 public class Client {
     private static Logger log = LoggerFactory.getLogger(Client.class);
-    private static final int THREAD_NUMBER = Runtime.getRuntime().availableProcessors() * 2;
+    private static final int THREAD_NUMBER = Runtime.getRuntime().availableProcessors();
     private static final String LIC = "net://172.16.0.209:888";
     private static HSFPMatchSDK matchSDK;
     private static PointerByReference pbr;
@@ -38,7 +38,7 @@ public class Client {
             System.exit(-1);
         }
         final String host = args[0];
-        int threadCount = Runtime.getRuntime().availableProcessors();
+        int threadCount = THREAD_NUMBER;
         try {
             if (args.length > 1) {
                 threadCount = Integer.parseInt(args[1]);
@@ -46,8 +46,8 @@ public class Client {
         } catch (NumberFormatException e) {
         }
         log.info("Use thread count: {}", threadCount);
-
-        for (int i = 0; i < threadCount; i++) {
+        initExtractFea();
+        for (int i = 0; i < 1; i++) {
             new Thread(()->{
                 while (true) {
                     try{
@@ -61,21 +61,21 @@ public class Client {
                         }
                     }
                 }
-            }).start();
+            }, "Thread_Client_"+i).start();
         }
     }
 
-    private static void handle(String host) throws IOException {
+    private synchronized static void handle(String host) throws IOException {
+        Socket socket = new Socket(host, 8888);
+        log.info("Connect to the host: {}", host);
+        DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
+        DataInputStream dis = new DataInputStream(socket.getInputStream());
         while (true) {
-            Socket socket = new Socket(host, 8888);
             try {
-                log.info("Connect to the host: {}", host);
-
-                DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
-                DataInputStream dis = new DataInputStream(socket.getInputStream());
-                ProcessRecord record = new ProcessRecord();
+                ProcessRecord record = null;
                 try {
                     byte[] data = new byte[dis.readInt()];
+                    log.debug("data from server: data length is {}", data.length);
                     dis.readFully(data);
                     record = ProcessRecord.bytes2Record(data);
                 } catch (ClassNotFoundException e) {
@@ -84,24 +84,30 @@ public class Client {
                     record.msg = e.toString();
                 }
                 long start = System.currentTimeMillis();
-                log.trace("befor extract features");
+                log.debug("before extract features");
                 extractFea(record);
                 record.extractOK = true;
+                record.extractCost = System.currentTimeMillis() - start;
                 byte[] res = record.toBytes();
                 dos.writeInt(res.length);
                 dos.write(res);
-                log.trace("After extract features. record name: {}, cost: {}ms", record.file_name, System.currentTimeMillis() - start);
+                dos.flush();
+                log.debug("res.length is {}", res.length);
+                log.debug("After extract features. record name: {}, cost: {}ms", record.file_name, System.currentTimeMillis() - start);
             } catch (IOException e) {
                 log.error("socket error. closing...", e);
-            } finally {
+            } /*finally {
                 socket.close();
+            }*/
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
             }
         }
     }
 
-    private static void extractFea(ProcessRecord record) {
+    private synchronized static void extractFea(ProcessRecord record) {
         byte[] fea;
-        initExtractFea();
         for (int i = 0; i < 10; i++) {
             byte[] wsq_file = record.imgs[i];
             if (null == wsq_file) {
@@ -110,27 +116,37 @@ public class Client {
                 fea = new byte[3072];
                 int len = wsq_file.length;
                 DecOutParam decOutParam = new DecOutParam();
+                long temp = System.currentTimeMillis();
                 int n = Cxbio.cxbio.CxbioGetImageData(ByteBuffer.wrap(wsq_file), len, Cxbio.CXBIO_FORMAT_WSQ, decOutParam);
+                temp = System.currentTimeMillis() - temp;
+                log.debug("get image {} cost {} ms", i, temp);
                 if (n != 0) {
-                    log.error("Cxbio get image data error. record: {}, imgs[{}]", record.file_name, i);
+                    log.error("Cxbio get image data error. record: {}/{}, imgs[{}]", record.file_dir, record.file_name, i);
                 }
                 log.trace("Cxbio get image data finish");
                 int img_len = decOutParam.buf_size;
                 byte[] img = decOutParam.buf.getByteArray(0, img_len);
                 Pointer p = pbr.getValue();
+
+                temp = System.currentTimeMillis();
                 int m = matchSDK.HSFp_ExtractFeature(p, (i + 1), HSFPMatchSDK.NonLiveScanRolled, decOutParam.width, decOutParam.height,
                         ByteBuffer.wrap(img), nFlag, ByteBuffer.wrap(fea));
+                temp = System.currentTimeMillis() - temp;
+                log.debug("extract finger{} copst {} ms", i, temp);
                 if (m != 0) {
-                    log.error("Extract feature error. record: {}, imgs[{}]", record.file_name, i);
+                    log.error("Extract feature error. record: {}/{}, imgs[{}]", record.file_dir, record.file_name, i);
+                    record.feas[i] = null;
                 } else {
                     log.debug("Extract feature successfully. ");
                     record.feas[i] = fea;
                 }
+                Cxbio.cxbio.CxbioFree(decOutParam.buf);
             }
         }
+
     }
 
-    private static void initExtractFea() {
+    private synchronized static void initExtractFea() {
         matchSDK = HSFPMatchSDK.INSTANCE;
         pbr = new PointerByReference();
         int n = matchSDK.HSFp_BeginExtractFeature(pbr);

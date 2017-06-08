@@ -2,6 +2,7 @@ package SDK.cxbio;
 
 import com.sun.jna.Library;
 import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 
 import java.nio.ByteBuffer;
 
@@ -23,6 +24,7 @@ public interface Cxbio extends Library {
 
     int CxbioGetImageData(ByteBuffer var1, int var2, int var3, DecOutParam var4);
 
+    void CxbioFree(Pointer var0);
     public static void main(String[] args) {
 //        byte[] img = read();
 //        int type = 1;

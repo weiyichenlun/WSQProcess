@@ -1,0 +1,14 @@
+CREATE TABLE hbie_latfp
+(
+  ID      VARCHAR2(32) PRIMARY KEY,
+  VER     NUMBER(3,0),
+  NAME    varchar2(100),
+  PATH    varchar2(100),
+  DIR     varchar2(100),
+  FEA_a   BLOB,
+  FEA_m   BLOB,
+  CREATE_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IDX_LATFP_ID_VER ON hbie_latfp(ID,VER,DIR,NAME);
+

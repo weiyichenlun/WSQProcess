@@ -1,5 +1,6 @@
 package com.hisign.process;
 
+import com.hisign.process.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +11,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -20,7 +22,9 @@ public class Main {
 
     private static ProcessInfo info;
 
-    public static void main(String[] args) {
+    private static AtomicBoolean finished = new AtomicBoolean();
+
+    public static void main(String[] args) throws IOException {
         String src_dir = Utils.getConfig("src_dir");
         if (src_dir == null || src_dir.trim().isEmpty()) {
             log.error("Config error: src_dir is empty");
@@ -64,28 +68,31 @@ public class Main {
             log.error("Src directory is empty. ");
             return;
         }
-        Arrays.sort(sub_dirs);
+        sub_dirs = Utils.sort(sub_dirs);
         int fromIndex = 0;
         int toIndex = 0;
         try {
             toIndex = Integer.parseInt(sub_dirs[sub_dirs.length - 1]);
         } catch (NumberFormatException e) {
             log.error("The last sub directory name is not a number: {}", sub_dirs[sub_dirs.length - 1]);
+            return;
         }
 
         if (null == last_dir || last_dir.isEmpty()) {
             fromIndex = 0;
         } else {
             try {
-                fromIndex = Integer.parseInt(last_dir);
+                fromIndex = Integer.parseInt(last_dir) + 1;
             } catch (NumberFormatException e) {
                 log.error("in info, the lastDir parameter is not a number: {}", last_dir);
             }
         }
 
         int interval = (toIndex - fromIndex) / read_thread_count + 1;
+        log.debug("interval is {}", interval);
         if (interval < 1) {
             read_thread_count = 1;
+            interval = toIndex - fromIndex;
         }
         log.info("Continue last: {}", info.continueLast);
         if (info.continueLast) {
@@ -96,8 +103,10 @@ public class Main {
         for (int i = 0; i < read_thread_count; i++) {
             ReadFile readFile;
             if ((i + 1) * interval >= toIndex) {
+                log.debug("i={}, ReadFile fromIndex={}, toIndex={}",i, i*interval, toIndex);
                 readFile = new ReadFile(i * interval, toIndex, info);
             } else {
+                log.debug("i={}, ReadFile fromIndex={}, toIndex={}", i, i * interval, (i + 1) * interval);
                 readFile = new ReadFile(i * interval, (i + 1) * interval, info);
             }
             new Thread(readFile).start();
@@ -105,8 +114,10 @@ public class Main {
 
         //TODO Server Main start
         new Thread(Main::serve).start();
+
+        //write thread
         for (int i = 0; i < write_thread_count; i++) {
-            new Thread(Main::write).start();
+            new Thread(new WriteFea(info)).start();
         }
 
         //Waiting for loading all files finished
@@ -138,6 +149,40 @@ public class Main {
                 }
             }
         }).start();
+
+        //日志线程
+        new Thread(()->{
+            while (true) {
+                try{
+                    Thread.sleep(10 * 1000);
+                } catch (InterruptedException e) {
+                    log.info(e.toString());
+                }
+                if (finished.get()) {
+                    log.info("---------FINISHED---------");
+                    break;
+                }
+                log.info("Count(extract/write/extractFail/writeFail): {}/{}/{}/{}; Queue(read/write) size: {}/{}", info.extractFinishedCount.get(),
+                        info.writeFinishedCount.get(), info.extractFailCount.get(), info.writeFailCount.get(), info.readQueue.size(), info.writeQueue.size());
+                log.info("Put all: {}, put count: {}, cost(extract/write/writeLastInfo): {}/{}/{}", info.loadAll.get(), info.loadCount.get(),
+                        info.extractFeaCost, info.writeFeaCost, info.writeLastInfoCost);
+                log.info("Current waiting index: {}; Current processing dir: {}; Finished waiting count: {}; Current processing count: {} ",
+                        info.currentIndex.get(), info.currentDir, info.insertInfoMap.size(), info.processingCount.get());
+            }
+        }, "Logger Thread").start();
+
+        while (true) {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                log.error(e.toString());
+            }
+            if (info.readQueue.isEmpty() && info.writeQueue.isEmpty() && info.insertInfoMap.isEmpty()) {
+                break;
+            }
+        }
+        log.info("All task finished");
+        finished.set(true);
     }
 
     private static void continueLast(ProcessInfo info) {
@@ -152,7 +197,7 @@ public class Main {
             log.error("Src directory is empty.");
             return;
         }
-        Arrays.sort(sub_dirs);
+        sub_dirs = Utils.sort(sub_dirs);
         for (String sub_dir : sub_dirs) {
             if (info.continueLast && !finishSkip && sub_dir.compareTo(info.lastDir) < 0) {
                 if (displaySkip) {
@@ -195,14 +240,14 @@ public class Main {
                         String posStr = wsqname.substring(wsqname.lastIndexOf("_") + 1, wsqname.lastIndexOf("."));
                         int pos = Integer.parseInt(posStr);
                         if (pos > 10 || pos < 1) {
-                            log.warn("Unsoupported pos. wsq:{}", wsqname);
+                            log.warn("Unsoupported pos. wsq:{}/{}/{}", sub_dir, file_name, wsqname);
                             continue;
                         }
                         record.imgs[pos - 1] = Utils.readFile(new File(data_dir, wsqname));
                     } catch (NumberFormatException e) {
-                        log.error("Invalid pos value. wsq:{}", wsqname, e);
+                        log.error("Invalid pos value. wsq:{}/{}/{}", sub_dir, file_name, wsqname, e);
                     } catch (IOException e) {
-                        log.error("Read wsq file error. dir: {}, file: {}, wsq: {}", sub_dir, file_name, wsqname, e);
+                        log.error("Read wsq file error. wsq: {}/{}/{}", sub_dir, file_name, wsqname, e);
                     }
                 }
                 record.file_dir = sub_dir;
@@ -219,9 +264,6 @@ public class Main {
         }
     }
 
-    private static void write() {
-
-    }
 
     private static void serve() {
         try{
@@ -235,14 +277,14 @@ public class Main {
                             handle(socket);
                         } catch (IOException | InterruptedException e) {
                             log.error(e.toString());
-                        } finally {
+                        } /*finally {
                             try {
                                 socket.close();
                             } catch (IOException e) {
                                 log.error("Close socket error: ", e);
                             }
-                        }
-                    }).start();
+                        }*/
+                    }, "Thread_socket_"+socket.getPort()).start();
                 } catch (Exception e) {
                     log.error("Accept client error: ", e);
                 }
@@ -258,35 +300,49 @@ public class Main {
         DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
         log.info("Begin taking readQueue...");
         while (true) {
+            log.debug("Info readQueue size is {}", info.readQueue.size());
             ProcessRecord record = info.readQueue.take();
-            log.trace("After taking {}", record.file_name);
+            log.debug("After taking {}", record.file_name);
             info.processingCount.incrementAndGet();
             //TODO 是否保存读取的wsq数据防止提取特征失败
-            byte[][] bak = record.imgs;
+            byte[][] imgs_bak = record.imgs;
             try{
-                long t1 = System.currentTimeMillis();
                 byte[] data = record.toBytes();
                 dos.writeInt(data.length);
                 dos.write(data);
+                dos.flush();
                 byte[] rec_data = new byte[dis.readInt()];
                 dis.readFully(rec_data);
 
                 ProcessRecord pr = ProcessRecord.bytes2Record(rec_data);
-                if (!pr.extractOK) {
-                    info.readQueue.put(record);
-                    info.processingCount.decrementAndGet();
-                } else {
-                    info.extractFeaCost.set(System.currentTimeMillis() - t1);
-                    info.writeQueue.put(pr);
+                info.extractFinishedCount.incrementAndGet();
+                info.extractFeaCost.set(pr.extractCost);
+                while (true) {
+                    try {
+                        info.writeQueue.put(pr);
+                        break;
+                    } catch (InterruptedException e) {
+                        log.error("Fail to put into writeQueue. record: {}/{}", record.file_dir, record.file_name, e);
+                    }
                 }
+
             } catch (Exception e) {
                 if (e instanceof IOException) {
                     log.error("IO error. file: {}/{} ", record.file_dir, record.file_name, e);
                 } else {
                     log.error("Error. file: {}/{} ", record.file_dir, record.file_name, e);
                 }
+
                 log.debug("-----------Try to put back into readqueue----------------");
-                info.readQueue.put(record);
+                while (true) {
+                    try {
+                        info.readQueue.put(record);
+                        info.extractFinishedCount.decrementAndGet();
+                        break;
+                    } catch (InterruptedException e1) {
+                        log.error("Fail to put back into readQueue. record: {}/{}", record.file_dir, record.file_name, e);
+                    }
+                }
                 log.debug("-----------After putting back into readqueue------file: {}/{}", record.file_dir, record.file_name);
                 break;
             } finally {

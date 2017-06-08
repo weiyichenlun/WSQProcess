@@ -1,9 +1,10 @@
-package com.hisign.process;
+package com.hisign.process.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.Arrays;
 import java.util.Properties;
 
 /**
@@ -19,7 +20,7 @@ public class Utils {
 
     private static synchronized void init() {
         configFile = new File(configFileName);
-        log.info("configfile abs path is {}", configFile.getAbsolutePath());
+        log.debug("configfile abs path is {}", configFile.getAbsolutePath());
         fileLastModified = configFile.lastModified();
         props = new Properties();
         load();
@@ -47,6 +48,20 @@ public class Utils {
         }
         if(configFile.lastModified() > fileLastModified ) load();
         return props.getProperty(key);
+    }
+
+    public static String[] sort(String[] sub_dirs) {
+        Arrays.sort(sub_dirs, (o1, o2) -> {
+            try {
+                int i1 = Integer.parseInt(o1);
+                int i2 = Integer.parseInt(o2);
+                return i1 > i2 ? 1 : (i1 < i2 ? -1 : 0);
+            } catch (NumberFormatException e) {
+                log.error("sub_dirs format error: not a number. {}, {}", o1, o2);
+                return o1.compareTo(o2);
+            }
+        });
+        return sub_dirs;
     }
 
 

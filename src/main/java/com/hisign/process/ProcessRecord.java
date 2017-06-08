@@ -12,6 +12,7 @@ import java.io.Serializable;
  * Created by ZP on 2017/5/26.
  */
 public class ProcessRecord implements Serializable{
+    private static final long serialVersionUID = 7122855224578149L;
     //编号，用于断点续传
     public int idx;
 
@@ -30,13 +31,13 @@ public class ProcessRecord implements Serializable{
     //提取结果
     public boolean extractOK;
 
+    public long extractCost;
+
     //写入结果
     public boolean writeOK;
 
     public String msg;
     public Throwable ex;
-
-    public long failTime;
 
     public byte[] toBytes() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
