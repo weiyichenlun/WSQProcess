@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * load wsq files into info.readqueue between directory fromIndex and direactory toIndex
@@ -18,8 +17,6 @@ public class ReadFile implements Runnable {
     private int fromIndex = 0;
     private int toIndex = 0;
     private String TOPDIR = null;
-    private AtomicInteger count = new AtomicInteger(0);
-    private long start = 0L;
     private ProcessInfo info;
     private int thread_idx;
     public ReadFile(int fromIndex, int toIndex, ProcessInfo info, int thread_idx) {
@@ -88,7 +85,6 @@ public class ReadFile implements Runnable {
                     continue;
                 }
                 ProcessRecord record = new ProcessRecord();
-//                log.info("in dataDir {} has {} wsq files", dataDir.getAbsolutePath(), wsqNames.length);
                 for (String wsqname : wsqNames) {
                     if (!wsqname.contains("_")) {
                         log.warn("invalid wsqname: {}", wsqname);
@@ -114,9 +110,7 @@ public class ReadFile implements Runnable {
                 record.thread_idx = thread_idx;
                 while (true) {
                     try {
-                        log.info("put record into readQueue");
                         info.readQueue.put(record);
-                        log.trace("record.idx is {}, record.thread_idx is {}", record.idx, record.thread_idx);
                         info.loadCount.incrementAndGet();
                         break;
                     } catch (InterruptedException e) {

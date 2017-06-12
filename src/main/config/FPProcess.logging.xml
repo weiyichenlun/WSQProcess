@@ -16,7 +16,7 @@
         <timeBasedFileNamingAndTriggeringPolicy
               class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
           <!-- or whenever the file size reaches 100MB -->
-          <maxFileSize>100MB</maxFileSize>
+          <maxFileSize>30MB</maxFileSize>
         </timeBasedFileNamingAndTriggeringPolicy>
       </rollingPolicy>
       <encoder>
@@ -24,8 +24,8 @@
       </encoder>
     </appender>
         <root>
-        <appender-ref ref="ALL" level="DEBUG"/>
-        <appender-ref ref="STDOUT" level = "DEBUG" />
+        <appender-ref ref="ALL" level="INFO"/>
+        <appender-ref ref="STDOUT" level = "INFO" />
     </root>
-<logger name="con.hisign.process.Main" level="DEBUG"/>
+<logger name="con.hisign.process.client" level="INFO"/>
 </configuration>

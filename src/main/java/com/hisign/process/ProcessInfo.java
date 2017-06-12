@@ -80,6 +80,8 @@ public class ProcessInfo {
     private RandomAccessFile raf;
     private PrintWriter pw_extract_fail;
     private PrintWriter pw_write_fail;
+    private final int INTERVAL = 10;
+    private long start = System.currentTimeMillis();
 
     public ProcessInfo() throws IOException {
         this(1);//默认读取线程为1
@@ -177,56 +179,30 @@ public class ProcessInfo {
         } else {
             insertInfoMap.replace(thread_idx, tempInfo);
         }
-        //infomap中存储了五个线程各自的一条record后则写入last_info.txt
         StringBuilder sb = new StringBuilder();
         sb.append("last_index=").append(tempInfo.idx).append("\r\n");
-//        sb.append("last_dir=").append(tempInfo.file_dir).append("\r\n");
-//        sb.append("last_name=").append(tempInfo.file_name).append("\r\n");
         sb.append("extract_finish_count=").append(extractFinishedCount.get()).append("\r\n");
         sb.append("write_finish_count=").append(writeFinishedCount.get()).append("\r\n");
         sb.append("extract_fail_count=").append(extractFailCount.get()).append("\r\n");
         sb.append("write_fail_count=").append(writeFailCount.get()).append("\r\n");
-        sb.append("finish_count=").append(finishCount.get()).append("\r\n");
+        sb.append("finish_count=").append(finishCount.get() + 1).append("\r\n");
         sb.append("read_thread_count=").append(thread_num).append("\r\n");
-        if (thread_num == insertInfoMap.size()) {
+        if (thread_num == insertInfoMap.size() && (System.currentTimeMillis() - start > INTERVAL * 1000)) {
             insertInfoMap.forEach((integer, tempInfo1) -> sb.append(addInfo(tempInfo1)));
-            insertInfoMap.clear();
+            log.info(sb.toString());
             writeRandomFile(sb.toString());
+            start = System.currentTimeMillis();
+            insertInfoMap.clear();
         }
-
-//        String s = String.format("last_index=%d\r\nlast_dir=%s\r\nlast_name=%s\r\nextract_finish_count=%d\r\nwrite_finish_count=%d\r\nextract_fail_count=%d\r\n" +
-//                        "write_fail_count=%d\r\nfinish_count=%d\r\n", tempInfo.idx, tempInfo.file_dir, tempInfo.file_name, extractFinishedCount.get() + 1,
-//                writeFinishedCount.get(), extractFailCount.get(), writeFailCount.get(), finishCount.get());
-//        log.trace("tempInfo.idx is {}", tempInfo.idx);
-//        log.trace("now current idx is {}", currentIndex.get());
-//        if (tempInfo.idx == currentIndex.get()) {
-//            writeRandomFile(tempInfo);
-//            currentIndex.incrementAndGet();
-//            while (true) {
-//                ProcessTempInfo pti = insertInfoMap.get(currentIndex.get());
-//                if (pti == null) {
-//                    break;
-//                } else {
-//                    writeRandomFile(pti);
-//                    insertInfoMap.remove(pti.idx);
-//                    if (currentIndex.get() == pti.idx) {
-//                        currentIndex.incrementAndGet();
-//                    }
-//                }
-//            }
-//        } else {
-//            insertInfoMap.put(tempInfo.idx, tempInfo);
-//        }
     }
 
     private String addInfo(ProcessTempInfo tempInfo1) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("thread_").append(tempInfo1.thread_idx).append("_last_dir=").append(tempInfo1.file_dir).append("\r\n");
-        sb.append("thread_").append(tempInfo1.thread_idx).append("_last_name=").append(tempInfo1.file_name).append("\r\n");
-        return sb.toString();
+        String sb = "thread_" + tempInfo1.thread_idx + "_last_dir=" + tempInfo1.file_dir + "\r\n" +
+                "thread_" + tempInfo1.thread_idx + "_last_name=" + tempInfo1.file_name + "\r\n";
+        return sb;
     }
 
-    synchronized void writeRandomFile(ProcessTempInfo tempInfo) {
+    private synchronized void writeRandomFile(ProcessTempInfo tempInfo) {
         currentDir = tempInfo.file_dir;
         if (!tempInfo.extractOK) {
             extractFailCount.incrementAndGet();

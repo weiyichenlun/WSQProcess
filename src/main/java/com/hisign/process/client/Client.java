@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.Socket;
@@ -45,7 +44,7 @@ public class Client {
             }
         } catch (NumberFormatException e) {
         }
-        log.info("Use thread count: {}", threadCount);
+        log.info("Before init...");
         initExtractFea();
         for (int i = 0; i < 1; i++) {
             new Thread(()->{
@@ -75,7 +74,6 @@ public class Client {
                 ProcessRecord record = null;
                 try {
                     byte[] data = new byte[dis.readInt()];
-                    log.debug("data from server: data length is {}", data.length);
                     dis.readFully(data);
                     record = ProcessRecord.bytes2Record(data);
                 } catch (ClassNotFoundException e) {
@@ -84,7 +82,6 @@ public class Client {
                     record.msg = e.toString();
                 }
                 long start = System.currentTimeMillis();
-                log.debug("before extract features");
                 extractFea(record);
                 record.extractCost = System.currentTimeMillis() - start;
                 record.imgs = null;
@@ -92,8 +89,6 @@ public class Client {
                 dos.writeInt(res.length);
                 dos.write(res);
                 dos.flush();
-                log.debug("res.length is {}", res.length);
-                log.debug("After extract features. record name: {}, cost: {}ms", record.file_name, System.currentTimeMillis() - start);
             } catch (IOException e) {
                 log.error("socket error. closing...", e);
             } /*finally {
@@ -120,24 +115,25 @@ public class Client {
                 log.debug("get image {} cost {} ms", i, temp);
                 if (n != 0) {
                     log.error("Cxbio get image data error. record: {}/{}, imgs[{}]", record.file_dir, record.file_name, i);
-                }
-                log.trace("Cxbio get image data finish");
-                int img_len = decOutParam.buf_size;
-                byte[] img = decOutParam.buf.getByteArray(0, img_len);
-                Pointer p = pbr.getValue();
-
-                temp = System.currentTimeMillis();
-                int m = matchSDK.HSFp_ExtractFeature(p, (i + 1), HSFPMatchSDK.NonLiveScanRolled, decOutParam.width, decOutParam.height,
-                        ByteBuffer.wrap(img), nFlag, ByteBuffer.wrap(fea));
-                temp = System.currentTimeMillis() - temp;
-                log.debug("extract finger{} copst {} ms", i, temp);
-                if (m != 0) {
-                    log.error("Extract feature error. record: {}/{}, imgs[{}]", record.file_dir, record.file_name, i);
                     record.feas[i] = null;
                     cnt++;
                 } else {
-                    log.debug("Extract feature successfully. ");
-                    record.feas[i] = fea;
+                    int img_len = decOutParam.buf_size;
+                    byte[] img = decOutParam.buf.getByteArray(0, img_len);
+                    Pointer p = pbr.getValue();
+
+                    temp = System.currentTimeMillis();
+                    int m = matchSDK.HSFp_ExtractFeature(p, (i + 1), HSFPMatchSDK.NonLiveScanRolled, decOutParam.width, decOutParam.height,
+                            ByteBuffer.wrap(img), nFlag, ByteBuffer.wrap(fea));
+                    temp = System.currentTimeMillis() - temp;
+                    log.debug("extract finger{} cost {} ms", i, temp);
+                    if (m != 0) {
+                        log.error("Extract feature error. record: {}/{}, imgs[{}]", record.file_dir, record.file_name, i);
+                        record.feas[i] = null;
+                        cnt++;
+                    } else {
+                        record.feas[i] = fea;
+                    }
                 }
                 Cxbio.cxbio.CxbioFree(decOutParam.buf);
             }
@@ -145,7 +141,8 @@ public class Client {
         if (cnt == 10) {
             log.warn("all features are null. record: {}/{}", record.file_dir, record.file_name);
             record.extractOK = false;
-            record.ex = new NullPointerException("features are null");
+//            record.ex = new NullPointerException("features are null");
+            record.ex = new Throwable("features are null");
         } else {
             record.extractOK = true;
         }
@@ -153,21 +150,15 @@ public class Client {
     }
 
     private synchronized static void initExtractFea() {
+        log.info("in initExtractFea method");
         matchSDK = HSFPMatchSDK.INSTANCE;
+        log.info("INSTANCE finished");
         pbr = new PointerByReference();
         int n = matchSDK.HSFp_BeginExtractFeature(pbr);
         if (n == 0) {
-            log.debug("init extract fea successfully");
+            log.info("init extract fea successfully");
         } else {
             log.info("init extract fea failed. HSFp_BeginExtractFeature n={}", n);
-        }
-    }
-
-    private static void clearDir(File sub_tmp_dir) {
-        File[] files = sub_tmp_dir.listFiles();
-        if (files == null) return;
-        for (File file : files) {
-            file.delete();
         }
     }
 }

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ *
  * Created by ZP on 2017/5/26.
  */
 public class WriteFea implements Runnable {
@@ -45,14 +46,12 @@ public class WriteFea implements Runnable {
             boolean insertOK = false;
             try {
                 long start = System.currentTimeMillis();
-                log.trace("before isnert: {}/{}", record.file_dir, record.file_name);
                 if (record.extractOK) {
                     insertOK = insertRecord(record);
                     start = System.currentTimeMillis() - start;
                     info.writeFeaCost.set(start);
                     if (insertOK) {
-                        log.debug("insert record successful. record: {}/{}, cost: {}ms", record.file_dir, record.file_name, start);
-                        info.finishCount.incrementAndGet();
+                        info.writeFinishedCount.incrementAndGet();
                     } else {
                         log.warn("duplicated record: {}/{}", record.file_dir, record.file_name);
                     }
@@ -68,12 +67,11 @@ public class WriteFea implements Runnable {
                 long start = System.currentTimeMillis();
                 info.writeLastInfo(record);
                 start = System.currentTimeMillis() - start;
-                log.debug("after write last info: {}/{}, cost: {}ms", record.file_dir, record.file_name, start);
                 info.writeLastInfoCost.set(start);
             } catch (Exception e) {
                 log.error("write last info error. record: {}/{}", record.file_dir, record.file_name, e);
             }
-            info.writeFinishedCount.incrementAndGet();
+            info.finishCount.incrementAndGet();
 
         }
     }
