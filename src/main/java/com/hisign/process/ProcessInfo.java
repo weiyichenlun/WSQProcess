@@ -103,11 +103,14 @@ public class ProcessInfo {
         if (props.size() > 0) {
             try {
                 lastIndex = Integer.parseInt(props.getProperty("last_index"));
+                log.info("last index is {}", lastIndex);
             } catch (NumberFormatException e) {
                 log.error("last_index number format error: {}",props.getProperty("last_index"), e);
             }
             lastDir = props.getProperty("last_dir");
+            log.info("last dir is {}", lastDir);
             lastName = props.getProperty("last_name");
+            log.info("last name is {}", lastName);
             if (null == lastDir) {
                 lastDir = "";
             }
@@ -116,6 +119,7 @@ public class ProcessInfo {
             }
             try {
                 int extract_finish_count = Integer.parseInt(props.getProperty("extract_finish_count"));
+                log.info("last extract_finish_count is {}", extract_finish_count);
                 extractFinishedCount.set(extract_finish_count);
             } catch (NumberFormatException e) {
                 log.error("extract_finish_count number format eroor: {}", props.getProperty("extract_finish_count"), e);
@@ -123,6 +127,7 @@ public class ProcessInfo {
 
             try {
                 int write_finish_count = Integer.parseInt(props.getProperty("write_finish_count"));
+                log.info("last write_finish_count is {}", write_finish_count);
                 writeFinishedCount.set(write_finish_count);
             } catch (NumberFormatException e) {
                 log.error("write_finish_count number format eroor: {}", props.getProperty("write_finish_count"), e);
@@ -130,6 +135,7 @@ public class ProcessInfo {
 
             try {
                 int extract_fail_count = Integer.parseInt(props.getProperty("extract_fail_count"));
+                log.info("last extract_fail_count is {}", extract_fail_count);
                 extractFailCount.set(extract_fail_count);
             } catch (NumberFormatException e) {
                 log.error("extract_fail_count number format eroor: {}", props.getProperty("extract_fail_count"), e);
@@ -137,6 +143,7 @@ public class ProcessInfo {
 
             try {
                 int write_fail_count = Integer.parseInt(props.getProperty("write_fail_count"));
+                log.info("last write_fail_count is {}", write_fail_count);
                 writeFailCount.set(write_fail_count);
             } catch (NumberFormatException e) {
                 log.error("write_fail_count number format eroor: {}", props.getProperty("write_fail_count"), e);
@@ -158,6 +165,7 @@ public class ProcessInfo {
                     for (int i = 0; i < num_thread; i++) {
                         end_dirs[i] = props.getProperty("thread_" + i + "_last_dir");
                         last_names[i] = props.getProperty("thread_" + i + "_last_name");
+                        log.info("thread_{} last dir is {}, last name is {}", i, end_dirs[i], last_names[i]);
                         continueLasts[i] = true;
                     }
                 }
@@ -177,13 +185,16 @@ public class ProcessInfo {
         if (temp == null) {
             insertInfoMap.put(thread_idx, tempInfo);
         } else {
-            insertInfoMap.replace(thread_idx, tempInfo);
+            if (temp.file_name.compareTo(tempInfo.file_name) < 0) {
+                insertInfoMap.replace(thread_idx, tempInfo);
+            }
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("last_index=").append(tempInfo.idx).append("\r\n");
+        int last_index = getLastIdx();
+        sb.append("last_index=").append(last_index).append("\r\n");
         sb.append("extract_finish_count=").append(extractFinishedCount.get()).append("\r\n");
-        sb.append("write_finish_count=").append(writeFinishedCount.get()).append("\r\n");
         sb.append("extract_fail_count=").append(extractFailCount.get()).append("\r\n");
+        sb.append("write_finish_count=").append(writeFinishedCount.get()).append("\r\n");
         sb.append("write_fail_count=").append(writeFailCount.get()).append("\r\n");
         sb.append("finish_count=").append(finishCount.get() + 1).append("\r\n");
         sb.append("read_thread_count=").append(thread_num).append("\r\n");
@@ -194,6 +205,16 @@ public class ProcessInfo {
             start = System.currentTimeMillis();
             insertInfoMap.clear();
         }
+    }
+
+    private int getLastIdx() {
+        final int[] idx = {0};
+        insertInfoMap.forEach((integer, tempInfo) -> {
+            if (tempInfo.idx > idx[0]) {
+                idx[0] = tempInfo.idx;
+            }
+        });
+        return idx[0];
     }
 
     private String addInfo(ProcessTempInfo tempInfo1) {

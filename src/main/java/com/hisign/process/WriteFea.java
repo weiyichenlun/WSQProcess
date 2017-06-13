@@ -55,8 +55,8 @@ public class WriteFea implements Runnable {
                     } else {
                         log.warn("duplicated record: {}/{}", record.file_dir, record.file_name);
                     }
+                    record.writeOK = true;
                 }
-                record.writeOK = true;
             } catch (SQLException e) {
                 log.error("insert record error. record: {}/{}", record.file_dir, record.file_name, e);
                 record.writeOK = false;

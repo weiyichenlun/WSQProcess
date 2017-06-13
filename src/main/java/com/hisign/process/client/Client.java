@@ -91,6 +91,8 @@ public class Client {
                 dos.flush();
             } catch (IOException e) {
                 log.error("socket error. closing...", e);
+                socket.close();
+                throw new IOException("socket error. "+socket.getLocalPort(), e);
             } /*finally {
                 socket.close();
             }*/
@@ -141,7 +143,6 @@ public class Client {
         if (cnt == 10) {
             log.warn("all features are null. record: {}/{}", record.file_dir, record.file_name);
             record.extractOK = false;
-//            record.ex = new NullPointerException("features are null");
             record.ex = new Throwable("features are null");
         } else {
             record.extractOK = true;

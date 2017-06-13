@@ -91,7 +91,8 @@ public class Main {
         }
         for (int i = 0; i < read_thread_count; i++) {
             ReadFile readFile;
-            info.start_dirs[i] = info.end_dirs[i] = String.valueOf(i * interval);
+//            info.start_dirs[i] = info.end_dirs[i] = String.valueOf(i * interval);
+            info.start_dirs[i] = String.valueOf(i * interval);
             if ((i + 1) * interval >= toIndex) {
                 readFile = new ReadFile(i * interval, toIndex, info, i);
             } else {
@@ -138,6 +139,7 @@ public class Main {
         }).start();
 
         //日志线程
+        int finalRead_thread_count = read_thread_count;
         new Thread(()->{
             while (true) {
                 try{
@@ -154,10 +156,14 @@ public class Main {
                 log.info("Put all: {}, put count: {}, cost(extract/write/writeLastInfo): {}/{}/{}", info.loadAll.get(), info.loadCount.get(),
                         info.extractFeaCost, info.writeFeaCost, info.writeLastInfoCost);
                 log.info("Current waiting index: {}; Current processing dir: {}; Finished waiting count: {}; Current processing count: {} ",
-                        info.currentIndex.get(), info.currentDir, info.insertInfoMap.size(), info.processingCount.get());
+                        info.currentIndex.get()- finalRead_thread_count, info.currentDir, info.insertInfoMap.size(), info.processingCount.get());
             }
         }, "Logger Thread").start();
 
+        try{
+            Thread.sleep(5 * 60 * 1000);
+        } catch (InterruptedException e) {
+        }
         while (true) {
             try {
                 Thread.sleep(10000);
@@ -228,7 +234,6 @@ public class Main {
                         log.error("Fail to put into writeQueue. record: {}/{}", record.file_dir, record.file_name, e);
                     }
                 }
-
             } catch (Exception e) {
                 if (e instanceof IOException) {
                     log.error("IO error. file: {}/{} ", record.file_dir, record.file_name, e);
