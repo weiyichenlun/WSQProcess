@@ -38,14 +38,6 @@ public class Main {
         }
         log.info("Using read_thread_count: {}", read_thread_count);
 
-        int process_thread_count = 1;
-        try {
-            process_thread_count = Integer.parseInt(Utils.getConfig("process_thread_count"));
-        } catch (NumberFormatException e) {
-            log.error("Config error: process_thread_count");
-        }
-        log.info("Using process_thread_count: {}", process_thread_count);
-
         int write_thread_count = 1;
         try {
             write_thread_count = Integer.parseInt(Utils.getConfig("write_thread_count"));
@@ -56,7 +48,6 @@ public class Main {
 
         info = new ProcessInfo(read_thread_count);
         info.src_dir = src_dir;
-
         String last_dir = info.lastDir;
         String[] sub_dirs = new File(src_dir).list();
         if (null == sub_dirs) {
@@ -155,13 +146,13 @@ public class Main {
                         info.writeFinishedCount.get(), info.extractFailCount.get(), info.writeFailCount.get(), info.readQueue.size(), info.writeQueue.size());
                 log.info("Put all: {}, put count: {}, cost(extract/write/writeLastInfo): {}/{}/{}", info.loadAll.get(), info.loadCount.get(),
                         info.extractFeaCost, info.writeFeaCost, info.writeLastInfoCost);
-                log.info("Current waiting index: {}; Current processing dir: {}; Finished waiting count: {}; Current processing count: {} ",
-                        info.currentIndex.get()- finalRead_thread_count, info.currentDir, info.insertInfoMap.size(), info.processingCount.get());
+//                log.info("Current waiting index: {}; Current processing dir: {}; Finished waiting count: {}; Current processing count: {} ",
+//                        info.currentIndex.get()- finalRead_thread_count, info.currentDir, info.insertInfoMap.size(), info.processingCount.get());
             }
         }, "Logger Thread").start();
 
         try{
-            Thread.sleep(5 * 60 * 1000);
+            Thread.sleep(60 * 1000);
         } catch (InterruptedException e) {
         }
         while (true) {
@@ -245,7 +236,7 @@ public class Main {
                     try {
                         info.readQueue.put(record);
                         info.extractFinishedCount.decrementAndGet();
-                        log.info("*****Put back into readQueue success. record: {}/{} ******", record.file_dir, record.file_name);
+                        log.info("***** Put back into readQueue success. record: {}/{} ******", record.file_dir, record.file_name);
                         break;
                     } catch (InterruptedException e1) {
                         log.error("Fail to put back into readQueue. record: {}/{}", record.file_dir, record.file_name, e);

@@ -16,6 +16,8 @@ public class ProcessTempInfo {
 
     public boolean writeOK;
 
+    public boolean duplicated;
+
     public String msg;
 
     public Throwable ex;
@@ -27,6 +29,7 @@ public class ProcessTempInfo {
         this.file_name = record.file_name;
         this.extractOK = record.extractOK;
         this.writeOK = record.writeOK;
+        this.duplicated = record.duplicated;
         if (!this.extractOK) {
             this.ex = record.ex;
             if (this.ex == null) {

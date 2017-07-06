@@ -23,10 +23,26 @@ public interface HSFPMatchSDK extends Library {
     public static final int LatentPhoto = 6;
     public static final int LatentLift = 7;
 
+    enum MatchType{
+        P2P(0), L2P(1), P2L(2), L2L(3);
+
+        private int val;
+        MatchType(int i) {
+            this.val = i;
+        }
+
+        @Override
+        public String toString() {
+            return String.valueOf(this.val);
+        }
+    }
+
     int HSFp_Initialize(String lic);
 
     int HSFp_BeginExtractFeature(PointerByReference br);
 
     int HSFp_ExtractFeature(Pointer var0, int var1, int var2, int var3, int var4, ByteBuffer var5, int var6, ByteBuffer var7);
+
+    int HSFp_MakeProbe(Pointer var0, ByteBuffer pFtr, ByteBuffer probebuf, int matchType);
 
 }

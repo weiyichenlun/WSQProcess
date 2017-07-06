@@ -54,6 +54,7 @@ public class WriteFea implements Runnable {
                         info.writeFinishedCount.incrementAndGet();
                     } else {
                         log.warn("duplicated record: {}/{}", record.file_dir, record.file_name);
+                        record.duplicated = true;
                     }
                     record.writeOK = true;
                 }

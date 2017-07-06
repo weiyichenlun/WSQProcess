@@ -38,6 +38,8 @@ public class ProcessRecord implements Serializable{
     //写入结果
     public boolean writeOK;
 
+    public boolean duplicated;
+
     public String msg;
     public Throwable ex;
 

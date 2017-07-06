@@ -12,8 +12,8 @@ import org.slf4j.LoggerFactory;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 
 /**
@@ -29,39 +29,33 @@ public class Client {
     private static final int nFlag = 5;
 
     public static void main(String[] args) {
-        String name = ManagementFactory.getRuntimeMXBean().getName();
-//        String pid = name.split("@")[0];
-
         if (args.length == 0) {
             log.error("Server host is not specified in the command line");
             System.exit(-1);
         }
         final String host = args[0];
-        int threadCount = THREAD_NUMBER;
-        try {
-            if (args.length > 1) {
-                threadCount = Integer.parseInt(args[1]);
-            }
-        } catch (NumberFormatException e) {
-        }
-        log.info("Before init...");
+        //使用单线程多进程模式进行特征提取
+        log.debug("Before init...");
         initExtractFea();
-        for (int i = 0; i < 1; i++) {
-            new Thread(()->{
-                while (true) {
-                    try{
-                        handle(host);
-                    } catch (IOException e) {
-                        log.error("Socket connection error. Waiting....", e);
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e1) {
-                            log.error("InterruptedException: ", e);
-                        }
+        new Thread(()->{
+            while (true) {
+                try{
+                    handle(host);
+                } catch (IOException e) {
+                    if (e instanceof SocketException) {
+                        log.error("SocketException happened. The error message is {}", e.getMessage(), e);
+                        System.exit(-1);
+                    }
+                    log.error("Socket connection error. Waiting....", e);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e1) {
+                        log.error("InterruptedException: ", e);
                     }
                 }
-            }, "Thread_Client_"+i).start();
-        }
+            }
+        }, "Thread_Client").start();
+
     }
 
     private synchronized static void handle(String host) throws IOException {
@@ -72,15 +66,9 @@ public class Client {
         while (true) {
             try {
                 ProcessRecord record = null;
-                try {
-                    byte[] data = new byte[dis.readInt()];
-                    dis.readFully(data);
-                    record = ProcessRecord.bytes2Record(data);
-                } catch (ClassNotFoundException e) {
-                    log.error(e.toString());
-                    record.ex = e;
-                    record.msg = e.toString();
-                }
+                byte[] data = new byte[dis.readInt()];
+                dis.readFully(data);
+                record = ProcessRecord.bytes2Record(data);
                 long start = System.currentTimeMillis();
                 extractFea(record);
                 record.extractCost = System.currentTimeMillis() - start;
@@ -93,9 +81,9 @@ public class Client {
                 log.error("socket error. closing...", e);
                 socket.close();
                 throw new IOException("socket error. "+socket.getLocalPort(), e);
-            } /*finally {
-                socket.close();
-            }*/
+            } catch (ClassNotFoundException e) {
+                log.error("impossiable: ", e);
+            }
         }
     }
 
@@ -109,10 +97,9 @@ public class Client {
                 cnt++;
             } else {
                 fea = new byte[3072];
-                int len = wsq_file.length;
                 DecOutParam decOutParam = new DecOutParam();
                 long temp = System.currentTimeMillis();
-                int n = Cxbio.cxbio.CxbioGetImageData(ByteBuffer.wrap(wsq_file), len, Cxbio.CXBIO_FORMAT_WSQ, decOutParam);
+                int n = Cxbio.cxbio.CxbioGetImageData(ByteBuffer.wrap(wsq_file), wsq_file.length, Cxbio.CXBIO_FORMAT_WSQ, decOutParam);
                 temp = System.currentTimeMillis() - temp;
                 log.debug("get image {} cost {} ms", i, temp);
                 if (n != 0) {
@@ -120,10 +107,8 @@ public class Client {
                     record.feas[i] = null;
                     cnt++;
                 } else {
-                    int img_len = decOutParam.buf_size;
-                    byte[] img = decOutParam.buf.getByteArray(0, img_len);
+                    byte[] img = decOutParam.buf.getByteArray(0, decOutParam.buf_size);
                     Pointer p = pbr.getValue();
-
                     temp = System.currentTimeMillis();
                     int m = matchSDK.HSFp_ExtractFeature(p, (i + 1), HSFPMatchSDK.NonLiveScanRolled, decOutParam.width, decOutParam.height,
                             ByteBuffer.wrap(img), nFlag, ByteBuffer.wrap(fea));
@@ -153,7 +138,6 @@ public class Client {
     private synchronized static void initExtractFea() {
         log.info("in initExtractFea method");
         matchSDK = HSFPMatchSDK.INSTANCE;
-        log.info("INSTANCE finished");
         pbr = new PointerByReference();
         int n = matchSDK.HSFp_BeginExtractFeature(pbr);
         if (n == 0) {

@@ -23,9 +23,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ProcessInfo {
     private Logger log = LoggerFactory.getLogger(ProcessInfo.class);
     //读序列，存放待提取特征的WSQ文件记录
-    public ArrayBlockingQueue<ProcessRecord> readQueue = new ArrayBlockingQueue<ProcessRecord>(1000);
+    public ArrayBlockingQueue<ProcessRecord> readQueue = new ArrayBlockingQueue<>(100);
     //写序列，存放提取特征后的记录
-    public ArrayBlockingQueue<ProcessRecord> writeQueue = new ArrayBlockingQueue<ProcessRecord>(1000);
+    public ArrayBlockingQueue<ProcessRecord> writeQueue = new ArrayBlockingQueue<>(100);
 
     //加载文件数目
     public AtomicInteger loadCount = new AtomicInteger();
@@ -80,6 +80,7 @@ public class ProcessInfo {
     private RandomAccessFile raf;
     private PrintWriter pw_extract_fail;
     private PrintWriter pw_write_fail;
+    private PrintWriter pw_duplicated_record;
     private final int INTERVAL = 10;
     private long start = System.currentTimeMillis();
 
@@ -97,6 +98,7 @@ public class ProcessInfo {
         raf = new RandomAccessFile("last_info.txt", "rw");
         pw_extract_fail = new PrintWriter(new FileWriter("fail_extract_list.txt", true), true);
         pw_write_fail = new PrintWriter(new FileWriter("fail_write_list.txt", true), true);
+        pw_duplicated_record = new PrintWriter(new FileWriter("duplicated_record.txt", true), true);
 
         Properties props = new Properties();
         props.load(new FileInputStream("last_info.txt"));
@@ -105,7 +107,7 @@ public class ProcessInfo {
                 lastIndex = Integer.parseInt(props.getProperty("last_index"));
                 log.info("last index is {}", lastIndex);
             } catch (NumberFormatException e) {
-                log.error("last_index number format error: {}",props.getProperty("last_index"), e);
+                log.error("last_index number format error: {}", props.getProperty("last_index"), e);
             }
             lastDir = props.getProperty("last_dir");
             log.info("last dir is {}", lastDir);
@@ -172,8 +174,6 @@ public class ProcessInfo {
             } catch (NumberFormatException e) {
                 log.error("thread_number format error: {}", props.getProperty("thread_num"), e);
             }
-
-
         }
     }
 
@@ -218,9 +218,8 @@ public class ProcessInfo {
     }
 
     private String addInfo(ProcessTempInfo tempInfo1) {
-        String sb = "thread_" + tempInfo1.thread_idx + "_last_dir=" + tempInfo1.file_dir + "\r\n" +
+        return "thread_" + tempInfo1.thread_idx + "_last_dir=" + tempInfo1.file_dir + "\r\n" +
                 "thread_" + tempInfo1.thread_idx + "_last_name=" + tempInfo1.file_name + "\r\n";
-        return sb;
     }
 
     private synchronized void writeRandomFile(ProcessTempInfo tempInfo) {
@@ -237,6 +236,15 @@ public class ProcessInfo {
         if (!tempInfo.writeOK) {
             writeInsertFailInfo(tempInfo);
         }
+
+        if (tempInfo.duplicated) {
+            writeDuplicatedRec(tempInfo.file_dir, tempInfo.file_name);
+        }
+    }
+
+    private synchronized void writeDuplicatedRec(String dir, String filename) {
+        pw_duplicated_record.println(dir + "\t" + filename + "\r\n");
+        pw_duplicated_record.flush();
     }
 
     private synchronized void writeRandomFile(String s) {
